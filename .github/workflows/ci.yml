@@ -1,0 +1,146 @@
+name: CI/CD - Projet Python DevOps
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+
+jobs:
+
+  # 1) CI-LINT
+
+  ci-lint:
+    name: CI-Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install flake8 + deps
+        run: |
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Run Lint
+        run: flake8 app tests
+
+  # 2) CI-TESTS
+  ci-tests:
+    name: CI-Tests
+    runs-on: ubuntu-latest
+    needs: ci-lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest
+
+  # 3) CI-BUILD DOCKER
+  ci-build:
+    name: CI-Build Docker
+    runs-on: ubuntu-latest
+    needs: ci-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Docker build
+        run: docker build -t projet-python-devops-ci .
+
+  # 4) CD-BUILD IMAGE DOCKER HUB
+
+  cd-build-image:
+    name: CD-Build Docker Hub
+    runs-on: ubuntu-latest
+    needs: ci-build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build prod image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/projet-python-devops:latest .
+
+      - name: Push to Docker Hub
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/projet-python-devops:latest
+
+  # 5) CD-DÉPLOIEMENT LOCAL
+  cd-deploy-local:
+    name: Générer script de déploiement local
+    runs-on: ubuntu-latest
+    needs: cd-build-image
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Generate deployment script
+        run: |
+          cat << 'EOF' > deploy_local.ps1
+          Write-Host "===== Déploiement local ====="
+          $image = "${{ secrets.DOCKER_USERNAME }}/projet-python-devops:latest"
+          $container = "projet-python-devops"
+          docker stop $container 2>$null
+          docker rm $container 2>$null
+          docker pull $image
+          docker run -d --name $container -p 5000:5000 $image
+          Write-Host "Déploiement terminé."
+          EOF
+
+      - name: Upload script
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-script
+          path: deploy_local.ps1
+
+  # 6) NOTIFICATION EMAIL
+  notify:
+    name: Notification Email
+    runs-on: ubuntu-latest
+    needs:
+      - ci-lint
+      - ci-tests
+      - ci-build
+      - cd-build-image
+      - cd-deploy-local
+    if: always()
+
+    steps:
+      - name: Send Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.MAIL_USERNAME }}
+          subject: "[CI/CD] Pipeline terminé"
+          body: "Votre pipeline CI/CD a terminé son exécution."
