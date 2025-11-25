@@ -131,7 +131,7 @@ jobs:
           EOF
 
       - name: Upload deployment script
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deploy-local-script
           path: deploy_local.ps1
