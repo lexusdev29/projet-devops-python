@@ -157,7 +157,7 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          secure: true
+          secure: starttls
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           to: ${{ secrets.MAIL_TO }}
