@@ -1,16 +1,16 @@
 from app import create_app
 
-def test_home_status_code():
+
+def test_home():
     app = create_app()
     client = app.test_client()
     response = client.get("/")
     assert response.status_code == 200
 
-def test_api_hello():
+
+def test_api():
     app = create_app()
     client = app.test_client()
     response = client.get("/api/hello")
-    data = response.get_json()
     assert response.status_code == 200
-    assert data["message"] == "Hello from the API!"
-
+    assert response.get_json()["message"] == "Hello from the API!"

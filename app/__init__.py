@@ -1,9 +1,11 @@
 from flask import Flask
+from .main import main_bp
+
 
 def create_app():
     app = Flask(__name__)
 
-    from .main import main_bp
-    app.register_blueprint(main_bp)   #préparation d'une structure propre avec blueprint
+    # Register blueprint
+    app.register_blueprint(main_bp)
 
     return app
